@@ -1,10 +1,11 @@
 -- model: image list
 -- view: display left all the images in the list, display on right filtered image id and image name as strings
+-- update: bring in actions from Image
 -- effects: decode url, image name, and id
 
 module Gallery where
 
-import Effects exposing (..)
+-- import Effects exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 -- import Html.Events exposing (..)
@@ -29,7 +30,7 @@ init =
       , Image.init "https://s3.amazonaws.com/maries_bakery/paleo_cake_germanchocolate1.jpg" "Cinnamon Rolls Ganache" 2
     ]}
 
--- let, in filtering here
+-- UPDATE
 
 update: Action -> Model -> Model
 update action model =

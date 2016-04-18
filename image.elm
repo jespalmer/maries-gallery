@@ -1,7 +1,7 @@
 -- model: image url, image id, with product name beneath and checkbox
 -- actions: toggle
 -- updates: the boolean state of the image, checked or unchecked
--- view: show an image url, with attributes of width and heights 300px; beneath that image url display the product name text-align centered with and beneath that display a checkbox
+-- view: show an image url, with attributes of width and heights 300px; beneath that image url display the product name and beneath that display a button
 
 module Image where
 
@@ -41,7 +41,6 @@ init url name id =
 -- UPDATE
 
 type Action = Toggle
-
 update : Action -> Model -> Model
 update action model =
   case action of
@@ -55,20 +54,20 @@ view address model =
   let
     btnText =
       if model.imgCheck then
-        "Kill me"
+        "Deleting"
       else
-        "Keep me"
+        "Keeping"
   in
     div [ style [("width", "300px")] ]
       [h2 [headerStyle] [text model.imgName]
       , div [imageStyle model.imgUrl] []
-      , button [onClick address Toggle] [text btnText]
+      , button [btnStyle, onClick address Toggle] [text btnText]
       ]
 
 headerStyle : Attribute
 headerStyle =
   style
-    [ ("width", "200px")
+    [ ("width", "300px")
     , ("text-align", "center")
     ]
 
@@ -81,4 +80,18 @@ imageStyle url =
     , ("background-position" , "center center")
     , ("background-size" , "cover")
     , ("background-image" , ("url('" ++ url ++ "')"))
+    ]
+
+btnStyle : Attribute
+btnStyle =
+  style
+    [ ("display", "inline-block")
+    , ("width" , "200px")
+    , ("padding", "8px")
+    , ("color", "purple")
+    , ("border", "3px solid purple")
+    , ("text-align", "center")
+    , ("outline", "none")
+    , ("text-decoration", "none")
+    , ("transition", "background-color 0.2s ease-out, color 0.2s ease-out")
     ]
