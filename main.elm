@@ -1,20 +1,25 @@
-import Effects exposing (Never)
-import Gallery exposing (init, update, view)
-import StartApp
-import Task
+-- import Effects exposing (Never)
+import Gallery exposing (init, view, update)
+import StartApp.Simple as StartApp
+import Html
 
-app =
+-- import Tasks
+
+-- model: Gallery.Model
+-- model = init
+
+main: Signal Html.Html
+main =
   StartApp.start
-    { init = init
-    , update = update
+    { model = init
     , view = view
-    , inputs = []
+    , update = update
+    -- , inputs = []
     }
 
-main =
-  app.html
+-- main =
+--   app.html
 
-
-port tasks : Signal (Task.Task Never ())
-port tasks =
-  app.tasks
+-- port tasks : Signal (Task.Task Never ())
+-- port tasks =
+--   app.tasks

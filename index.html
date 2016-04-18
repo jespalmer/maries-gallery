@@ -10596,346 +10596,38 @@ Elm.Html.Events.make = function (_elm) {
                                     ,targetChecked: targetChecked
                                     ,keyCode: keyCode
                                     ,Options: Options};
-};Elm.Native.Http = {};
-Elm.Native.Http.make = function(localRuntime) {
-
-	localRuntime.Native = localRuntime.Native || {};
-	localRuntime.Native.Http = localRuntime.Native.Http || {};
-	if (localRuntime.Native.Http.values)
-	{
-		return localRuntime.Native.Http.values;
-	}
-
-	var Dict = Elm.Dict.make(localRuntime);
-	var List = Elm.List.make(localRuntime);
-	var Maybe = Elm.Maybe.make(localRuntime);
-	var Task = Elm.Native.Task.make(localRuntime);
-
-
-	function send(settings, request)
-	{
-		return Task.asyncFunction(function(callback) {
-			var req = new XMLHttpRequest();
-
-			// start
-			if (settings.onStart.ctor === 'Just')
-			{
-				req.addEventListener('loadStart', function() {
-					var task = settings.onStart._0;
-					Task.spawn(task);
-				});
-			}
-
-			// progress
-			if (settings.onProgress.ctor === 'Just')
-			{
-				req.addEventListener('progress', function(event) {
-					var progress = !event.lengthComputable
-						? Maybe.Nothing
-						: Maybe.Just({
-							_: {},
-							loaded: event.loaded,
-							total: event.total
-						});
-					var task = settings.onProgress._0(progress);
-					Task.spawn(task);
-				});
-			}
-
-			// end
-			req.addEventListener('error', function() {
-				return callback(Task.fail({ ctor: 'RawNetworkError' }));
-			});
-
-			req.addEventListener('timeout', function() {
-				return callback(Task.fail({ ctor: 'RawTimeout' }));
-			});
-
-			req.addEventListener('load', function() {
-				return callback(Task.succeed(toResponse(req)));
-			});
-
-			req.open(request.verb, request.url, true);
-
-			// set all the headers
-			function setHeader(pair) {
-				req.setRequestHeader(pair._0, pair._1);
-			}
-			A2(List.map, setHeader, request.headers);
-
-			// set the timeout
-			req.timeout = settings.timeout;
-
-			// enable this withCredentials thing
-			req.withCredentials = settings.withCredentials;
-
-			// ask for a specific MIME type for the response
-			if (settings.desiredResponseType.ctor === 'Just')
-			{
-				req.overrideMimeType(settings.desiredResponseType._0);
-			}
-
-			// actuall send the request
-			if(request.body.ctor === "BodyFormData")
-			{
-				req.send(request.body.formData)
-			}
-			else
-			{
-				req.send(request.body._0);
-			}
-		});
-	}
-
-
-	// deal with responses
-
-	function toResponse(req)
-	{
-		var tag = req.responseType === 'blob' ? 'Blob' : 'Text'
-		var response = tag === 'Blob' ? req.response : req.responseText;
-		return {
-			_: {},
-			status: req.status,
-			statusText: req.statusText,
-			headers: parseHeaders(req.getAllResponseHeaders()),
-			url: req.responseURL,
-			value: { ctor: tag, _0: response }
-		};
-	}
-
-
-	function parseHeaders(rawHeaders)
-	{
-		var headers = Dict.empty;
-
-		if (!rawHeaders)
-		{
-			return headers;
-		}
-
-		var headerPairs = rawHeaders.split('\u000d\u000a');
-		for (var i = headerPairs.length; i--; )
-		{
-			var headerPair = headerPairs[i];
-			var index = headerPair.indexOf('\u003a\u0020');
-			if (index > 0)
-			{
-				var key = headerPair.substring(0, index);
-				var value = headerPair.substring(index + 2);
-
-				headers = A3(Dict.update, key, function(oldValue) {
-					if (oldValue.ctor === 'Just')
-					{
-						return Maybe.Just(value + ', ' + oldValue._0);
-					}
-					return Maybe.Just(value);
-				}, headers);
-			}
-		}
-
-		return headers;
-	}
-
-
-	function multipart(dataList)
-	{
-		var formData = new FormData();
-
-		while (dataList.ctor !== '[]')
-		{
-			var data = dataList._0;
-			if (data.ctor === 'StringData')
-			{
-				formData.append(data._0, data._1);
-			}
-			else
-			{
-				var fileName = data._1.ctor === 'Nothing'
-					? undefined
-					: data._1._0;
-				formData.append(data._0, data._2, fileName);
-			}
-			dataList = dataList._1;
-		}
-
-		return { ctor: 'BodyFormData', formData: formData };
-	}
-
-
-	function uriEncode(string)
-	{
-		return encodeURIComponent(string);
-	}
-
-	function uriDecode(string)
-	{
-		return decodeURIComponent(string);
-	}
-
-	return localRuntime.Native.Http.values = {
-		send: F2(send),
-		multipart: multipart,
-		uriEncode: uriEncode,
-		uriDecode: uriDecode
-	};
-};
-Elm.Http = Elm.Http || {};
-Elm.Http.make = function (_elm) {
-   "use strict";
-   _elm.Http = _elm.Http || {};
-   if (_elm.Http.values) return _elm.Http.values;
-   var _U = Elm.Native.Utils.make(_elm),
-   $Basics = Elm.Basics.make(_elm),
-   $Debug = Elm.Debug.make(_elm),
-   $Dict = Elm.Dict.make(_elm),
-   $Json$Decode = Elm.Json.Decode.make(_elm),
-   $List = Elm.List.make(_elm),
-   $Maybe = Elm.Maybe.make(_elm),
-   $Native$Http = Elm.Native.Http.make(_elm),
-   $Result = Elm.Result.make(_elm),
-   $Signal = Elm.Signal.make(_elm),
-   $String = Elm.String.make(_elm),
-   $Task = Elm.Task.make(_elm),
-   $Time = Elm.Time.make(_elm);
-   var _op = {};
-   var send = $Native$Http.send;
-   var BadResponse = F2(function (a,b) {    return {ctor: "BadResponse",_0: a,_1: b};});
-   var UnexpectedPayload = function (a) {    return {ctor: "UnexpectedPayload",_0: a};};
-   var handleResponse = F2(function (handle,response) {
-      if (_U.cmp(200,response.status) < 1 && _U.cmp(response.status,300) < 0) {
-            var _p0 = response.value;
-            if (_p0.ctor === "Text") {
-                  return handle(_p0._0);
-               } else {
-                  return $Task.fail(UnexpectedPayload("Response body is a blob, expecting a string."));
-               }
-         } else return $Task.fail(A2(BadResponse,response.status,response.statusText));
-   });
-   var NetworkError = {ctor: "NetworkError"};
-   var Timeout = {ctor: "Timeout"};
-   var promoteError = function (rawError) {    var _p1 = rawError;if (_p1.ctor === "RawTimeout") {    return Timeout;} else {    return NetworkError;}};
-   var fromJson = F2(function (decoder,response) {
-      var decode = function (str) {
-         var _p2 = A2($Json$Decode.decodeString,decoder,str);
-         if (_p2.ctor === "Ok") {
-               return $Task.succeed(_p2._0);
-            } else {
-               return $Task.fail(UnexpectedPayload(_p2._0));
-            }
-      };
-      return A2($Task.andThen,A2($Task.mapError,promoteError,response),handleResponse(decode));
-   });
-   var RawNetworkError = {ctor: "RawNetworkError"};
-   var RawTimeout = {ctor: "RawTimeout"};
-   var Blob = function (a) {    return {ctor: "Blob",_0: a};};
-   var Text = function (a) {    return {ctor: "Text",_0: a};};
-   var Response = F5(function (a,b,c,d,e) {    return {status: a,statusText: b,headers: c,url: d,value: e};});
-   var defaultSettings = {timeout: 0,onStart: $Maybe.Nothing,onProgress: $Maybe.Nothing,desiredResponseType: $Maybe.Nothing,withCredentials: false};
-   var post = F3(function (decoder,url,body) {
-      var request = {verb: "POST",headers: _U.list([]),url: url,body: body};
-      return A2(fromJson,decoder,A2(send,defaultSettings,request));
-   });
-   var Settings = F5(function (a,b,c,d,e) {    return {timeout: a,onStart: b,onProgress: c,desiredResponseType: d,withCredentials: e};});
-   var multipart = $Native$Http.multipart;
-   var FileData = F3(function (a,b,c) {    return {ctor: "FileData",_0: a,_1: b,_2: c};});
-   var BlobData = F3(function (a,b,c) {    return {ctor: "BlobData",_0: a,_1: b,_2: c};});
-   var blobData = BlobData;
-   var StringData = F2(function (a,b) {    return {ctor: "StringData",_0: a,_1: b};});
-   var stringData = StringData;
-   var BodyBlob = function (a) {    return {ctor: "BodyBlob",_0: a};};
-   var BodyFormData = {ctor: "BodyFormData"};
-   var ArrayBuffer = {ctor: "ArrayBuffer"};
-   var BodyString = function (a) {    return {ctor: "BodyString",_0: a};};
-   var string = BodyString;
-   var Empty = {ctor: "Empty"};
-   var empty = Empty;
-   var getString = function (url) {
-      var request = {verb: "GET",headers: _U.list([]),url: url,body: empty};
-      return A2($Task.andThen,A2($Task.mapError,promoteError,A2(send,defaultSettings,request)),handleResponse($Task.succeed));
-   };
-   var get = F2(function (decoder,url) {
-      var request = {verb: "GET",headers: _U.list([]),url: url,body: empty};
-      return A2(fromJson,decoder,A2(send,defaultSettings,request));
-   });
-   var Request = F4(function (a,b,c,d) {    return {verb: a,headers: b,url: c,body: d};});
-   var uriDecode = $Native$Http.uriDecode;
-   var uriEncode = $Native$Http.uriEncode;
-   var queryEscape = function (string) {    return A2($String.join,"+",A2($String.split,"%20",uriEncode(string)));};
-   var queryPair = function (_p3) {    var _p4 = _p3;return A2($Basics._op["++"],queryEscape(_p4._0),A2($Basics._op["++"],"=",queryEscape(_p4._1)));};
-   var url = F2(function (baseUrl,args) {
-      var _p5 = args;
-      if (_p5.ctor === "[]") {
-            return baseUrl;
-         } else {
-            return A2($Basics._op["++"],baseUrl,A2($Basics._op["++"],"?",A2($String.join,"&",A2($List.map,queryPair,args))));
-         }
-   });
-   var TODO_implement_file_in_another_library = {ctor: "TODO_implement_file_in_another_library"};
-   var TODO_implement_blob_in_another_library = {ctor: "TODO_implement_blob_in_another_library"};
-   return _elm.Http.values = {_op: _op
-                             ,getString: getString
-                             ,get: get
-                             ,post: post
-                             ,send: send
-                             ,url: url
-                             ,uriEncode: uriEncode
-                             ,uriDecode: uriDecode
-                             ,empty: empty
-                             ,string: string
-                             ,multipart: multipart
-                             ,stringData: stringData
-                             ,defaultSettings: defaultSettings
-                             ,fromJson: fromJson
-                             ,Request: Request
-                             ,Settings: Settings
-                             ,Response: Response
-                             ,Text: Text
-                             ,Blob: Blob
-                             ,Timeout: Timeout
-                             ,NetworkError: NetworkError
-                             ,UnexpectedPayload: UnexpectedPayload
-                             ,BadResponse: BadResponse
-                             ,RawTimeout: RawTimeout
-                             ,RawNetworkError: RawNetworkError};
 };Elm.StartApp = Elm.StartApp || {};
-Elm.StartApp.make = function (_elm) {
+Elm.StartApp.Simple = Elm.StartApp.Simple || {};
+Elm.StartApp.Simple.make = function (_elm) {
    "use strict";
    _elm.StartApp = _elm.StartApp || {};
-   if (_elm.StartApp.values) return _elm.StartApp.values;
+   _elm.StartApp.Simple = _elm.StartApp.Simple || {};
+   if (_elm.StartApp.Simple.values) return _elm.StartApp.Simple.values;
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Effects = Elm.Effects.make(_elm),
    $Html = Elm.Html.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
-   $Signal = Elm.Signal.make(_elm),
-   $Task = Elm.Task.make(_elm);
+   $Signal = Elm.Signal.make(_elm);
    var _op = {};
    var start = function (config) {
-      var updateStep = F2(function (action,_p0) {
-         var _p1 = _p0;
-         var _p2 = A2(config.update,action,_p1._0);
-         var newModel = _p2._0;
-         var additionalEffects = _p2._1;
-         return {ctor: "_Tuple2",_0: newModel,_1: $Effects.batch(_U.list([_p1._1,additionalEffects]))};
+      var update = F2(function (maybeAction,model) {
+         var _p0 = maybeAction;
+         if (_p0.ctor === "Just") {
+               return A2(config.update,_p0._0,model);
+            } else {
+               return _U.crashCase("StartApp.Simple",{start: {line: 91,column: 7},end: {line: 96,column: 52}},_p0)("This should never happen.");
+            }
       });
-      var update = F2(function (actions,_p3) {    var _p4 = _p3;return A3($List.foldl,updateStep,{ctor: "_Tuple2",_0: _p4._0,_1: $Effects.none},actions);});
-      var messages = $Signal.mailbox(_U.list([]));
-      var singleton = function (action) {    return _U.list([action]);};
-      var address = A2($Signal.forwardTo,messages.address,singleton);
-      var inputs = $Signal.mergeMany(A2($List._op["::"],messages.signal,A2($List.map,$Signal.map(singleton),config.inputs)));
-      var effectsAndModel = A3($Signal.foldp,update,config.init,inputs);
-      var model = A2($Signal.map,$Basics.fst,effectsAndModel);
-      return {html: A2($Signal.map,config.view(address),model)
-             ,model: model
-             ,tasks: A2($Signal.map,function (_p5) {    return A2($Effects.toTask,messages.address,$Basics.snd(_p5));},effectsAndModel)};
+      var actions = $Signal.mailbox($Maybe.Nothing);
+      var address = A2($Signal.forwardTo,actions.address,$Maybe.Just);
+      var model = A3($Signal.foldp,update,config.model,actions.signal);
+      return A2($Signal.map,config.view(address),model);
    };
-   var App = F3(function (a,b,c) {    return {html: a,model: b,tasks: c};});
-   var Config = F4(function (a,b,c,d) {    return {init: a,update: b,view: c,inputs: d};});
-   return _elm.StartApp.values = {_op: _op,start: start,Config: Config,App: App};
+   var Config = F3(function (a,b,c) {    return {model: a,view: b,update: c};});
+   return _elm.StartApp.Simple.values = {_op: _op,Config: Config,start: start};
 };Elm.Image = Elm.Image || {};
 Elm.Image.make = function (_elm) {
    "use strict";
@@ -10944,64 +10636,49 @@ Elm.Image.make = function (_elm) {
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Effects = Elm.Effects.make(_elm),
    $Html = Elm.Html.make(_elm),
    $Html$Attributes = Elm.Html.Attributes.make(_elm),
    $Html$Events = Elm.Html.Events.make(_elm),
-   $Http = Elm.Http.make(_elm),
-   $Json$Decode = Elm.Json.Decode.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm),
-   $Task = Elm.Task.make(_elm);
+   $String = Elm.String.make(_elm);
    var _op = {};
-   var decodeUrl = A2($Json$Decode.at,_U.list(["id","image","name"]),$Json$Decode.string);
-   _op["=>"] = F2(function (v0,v1) {    return {ctor: "_Tuple2",_0: v0,_1: v1};});
-   var headerStyle = $Html$Attributes.style(_U.list([A2(_op["=>"],"width","200px"),A2(_op["=>"],"text-align","center")]));
-   var imgStyle = function (url) {
-      return $Html$Attributes.style(_U.list([A2(_op["=>"],"display","inline-block")
-                                            ,A2(_op["=>"],"width","200px")
-                                            ,A2(_op["=>"],"height","200px")
-                                            ,A2(_op["=>"],"background-position","center center")
-                                            ,A2(_op["=>"],"background-size","cover")
-                                            ,A2(_op["=>"],"background-image",A2($Basics._op["++"],"url(\'",A2($Basics._op["++"],url,"\')")))]));
+   var imageStyle = function (url) {
+      return $Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "display",_1: "inline-block"}
+                                            ,{ctor: "_Tuple2",_0: "width",_1: "300px"}
+                                            ,{ctor: "_Tuple2",_0: "height",_1: "300px"}
+                                            ,{ctor: "_Tuple2",_0: "background-position",_1: "center center"}
+                                            ,{ctor: "_Tuple2",_0: "background-size",_1: "cover"}
+                                            ,{ctor: "_Tuple2",_0: "background-image",_1: A2($Basics._op["++"],"url(\'",A2($Basics._op["++"],url,"\')"))}]));
    };
-   var randomUrl = function (topic) {
-      return A2($Http.url,"https://www.mariesglutenfree.com/ajax/products",_U.list([A2(_op["=>"],"api_key","dc6zaTOxFJmzC"),A2(_op["=>"],"tag",topic)]));
-   };
-   var NewImage = function (a) {    return {ctor: "NewImage",_0: a};};
-   var getImage = function (topic) {    return $Effects.task(A2($Task.map,NewImage,$Task.toMaybe(A2($Http.get,decodeUrl,randomUrl(topic)))));};
-   var RequestMore = {ctor: "RequestMore"};
+   var headerStyle = $Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "width",_1: "200px"},{ctor: "_Tuple2",_0: "text-align",_1: "center"}]));
+   var update = F2(function (action,model) {    var _p0 = action;return _U.update(model,{imgCheck: $Basics.not(model.imgCheck)});});
+   var Toggle = {ctor: "Toggle"};
    var view = F2(function (address,model) {
+      var btnText = model.imgCheck ? "Kill meeeee" : "Keep meeeee";
       return A2($Html.div,
-      _U.list([$Html$Attributes.style(_U.list([A2(_op["=>"],"width","200px")]))]),
-      _U.list([A2($Html.h2,_U.list([headerStyle]),_U.list([$Html.text(model.topic)]))
-              ,A2($Html.div,_U.list([imgStyle(model.imageUrl)]),_U.list([]))
-              ,A2($Html.button,_U.list([A2($Html$Events.onClick,address,RequestMore)]),_U.list([$Html.text("More Please!")]))]));
+      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "width",_1: "300px"}]))]),
+      _U.list([A2($Html.h2,_U.list([headerStyle]),_U.list([$Html.text(model.imgName)]))
+              ,A2($Html.div,_U.list([imageStyle(model.imgUrl)]),_U.list([]))
+              ,A2($Html.button,_U.list([A2($Html$Events.onClick,address,Toggle)]),_U.list([$Html.text(btnText)]))]));
    });
-   var Model = F2(function (a,b) {    return {topic: a,imageUrl: b};});
-   var init = function (topic) {    return {ctor: "_Tuple2",_0: A2(Model,topic,"assets/waiting.gif"),_1: getImage(topic)};};
-   var update = F2(function (action,model) {
-      var _p0 = action;
-      if (_p0.ctor === "RequestMore") {
-            return {ctor: "_Tuple2",_0: model,_1: getImage(model.topic)};
-         } else {
-            return {ctor: "_Tuple2",_0: A2(Model,model.topic,A2($Maybe.withDefault,model.imageUrl,_p0._0)),_1: $Effects.none};
-         }
+   var defaultUrl = "http://s3.amazonaws.com/maries_bakery/coming_soon2-large.jpg";
+   var init = F3(function (url,name,id) {
+      var actualUrl = _U.eq($String.length(url),0) ? defaultUrl : url;
+      return {imgUrl: actualUrl,imgName: name,imgId: id,imgCheck: false};
    });
+   var Model = F4(function (a,b,c,d) {    return {imgUrl: a,imgName: b,imgId: c,imgCheck: d};});
    return _elm.Image.values = {_op: _op
                               ,Model: Model
+                              ,defaultUrl: defaultUrl
                               ,init: init
-                              ,RequestMore: RequestMore
-                              ,NewImage: NewImage
+                              ,Toggle: Toggle
                               ,update: update
                               ,view: view
                               ,headerStyle: headerStyle
-                              ,imgStyle: imgStyle
-                              ,getImage: getImage
-                              ,randomUrl: randomUrl
-                              ,decodeUrl: decodeUrl};
+                              ,imageStyle: imageStyle};
 };Elm.Gallery = Elm.Gallery || {};
 Elm.Gallery.make = function (_elm) {
    "use strict";
@@ -11010,7 +10687,6 @@ Elm.Gallery.make = function (_elm) {
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Effects = Elm.Effects.make(_elm),
    $Html = Elm.Html.make(_elm),
    $Html$Attributes = Elm.Html.Attributes.make(_elm),
    $Image = Elm.Image.make(_elm),
@@ -11019,38 +10695,23 @@ Elm.Gallery.make = function (_elm) {
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm);
    var _op = {};
-   var Right = function (a) {    return {ctor: "Right",_0: a};};
-   var Left = function (a) {    return {ctor: "Left",_0: a};};
+   var update = F2(function (action,model) {
+      var _p0 = action;
+      var updateImage = function (imageModel) {    return _U.eq(imageModel.imgId,_p0._0) ? A2($Image.update,_p0._1,imageModel) : imageModel;};
+      return _U.update(model,{imgList: A2($List.map,updateImage,model.imgList)});
+   });
+   var init = {imgList: _U.list([A3($Image.init,"","Black Forest Cupcakes",0)
+                                ,A3($Image.init,"","Cinnamon Rolls Ganache",1)
+                                ,A3($Image.init,"https://s3.amazonaws.com/maries_bakery/paleo_cake_germanchocolate1.jpg","Cinnamon Rolls Ganache",2)])};
+   var Modify = F2(function (a,b) {    return {ctor: "Modify",_0: a,_1: b};});
+   var elementView = F2(function (address,model) {    return A2($Image.view,A2($Signal.forwardTo,address,Modify(model.imgId)),model);});
    var view = F2(function (address,model) {
       return A2($Html.div,
-      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "display",_1: "flex"}]))]),
-      _U.list([A2($Image.view,A2($Signal.forwardTo,address,Left),model.left),A2($Image.view,A2($Signal.forwardTo,address,Right),model.right)]));
+      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "display",_1: "flex"},{ctor: "_Tuple2",_0: "flex-wrap",_1: "wrap"}]))]),
+      A2($List.map,elementView(address),model.imgList));
    });
-   var Model = F2(function (a,b) {    return {left: a,right: b};});
-   var init = F2(function (leftTopic,rightTopic) {
-      var _p0 = $Image.init(rightTopic);
-      var right = _p0._0;
-      var rightFx = _p0._1;
-      var _p1 = $Image.init(leftTopic);
-      var left = _p1._0;
-      var leftFx = _p1._1;
-      return {ctor: "_Tuple2",_0: A2(Model,left,right),_1: $Effects.batch(_U.list([A2($Effects.map,Left,leftFx),A2($Effects.map,Right,rightFx)]))};
-   });
-   var update = F2(function (action,model) {
-      var _p2 = action;
-      if (_p2.ctor === "Left") {
-            var _p3 = A2($Image.update,_p2._0,model.left);
-            var left = _p3._0;
-            var fx = _p3._1;
-            return {ctor: "_Tuple2",_0: A2(Model,left,model.right),_1: A2($Effects.map,Left,fx)};
-         } else {
-            var _p4 = A2($Image.update,_p2._0,model.right);
-            var right = _p4._0;
-            var fx = _p4._1;
-            return {ctor: "_Tuple2",_0: A2(Model,model.left,right),_1: A2($Effects.map,Right,fx)};
-         }
-   });
-   return _elm.Gallery.values = {_op: _op,Model: Model,init: init,Left: Left,Right: Right,update: update,view: view};
+   var Model = function (a) {    return {imgList: a};};
+   return _elm.Gallery.values = {_op: _op,Model: Model,Modify: Modify,init: init,update: update,view: view,elementView: elementView};
 };Elm.Main = Elm.Main || {};
 Elm.Main.make = function (_elm) {
    "use strict";
@@ -11059,17 +10720,14 @@ Elm.Main.make = function (_elm) {
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Effects = Elm.Effects.make(_elm),
    $Gallery = Elm.Gallery.make(_elm),
+   $Html = Elm.Html.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm),
-   $StartApp = Elm.StartApp.make(_elm),
-   $Task = Elm.Task.make(_elm);
+   $StartApp$Simple = Elm.StartApp.Simple.make(_elm);
    var _op = {};
-   var app = $StartApp.start({init: A2($Gallery.init,"funny cats","funny dogs"),update: $Gallery.update,view: $Gallery.view,inputs: _U.list([])});
-   var main = app.html;
-   var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",app.tasks);
-   return _elm.Main.values = {_op: _op,app: app,main: main};
+   var main = $StartApp$Simple.start({model: $Gallery.init,view: $Gallery.view,update: $Gallery.update});
+   return _elm.Main.values = {_op: _op,main: main};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.Main)</script></body></html>

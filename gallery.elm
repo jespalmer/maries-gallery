@@ -1,66 +1,64 @@
+-- model: image list
+-- view: display left all the images in the list, display on right filtered image id and image name as strings
+-- effects: decode url, image name, and id
+
 module Gallery where
 
-import Effects exposing (Effects)
+import Effects exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+-- import Html.Events exposing (..)
+-- import Http
+-- import Json.Decode as Json
 
 import Image
-
 
 -- MODEL
 
 type alias Model =
-    { left : Image.Model
-    , right : Image.Model
-    }
+  { imgList: List Image.Model
+  }
 
+type Action = Modify Int Image.Action
 
-init : String -> String -> (Model, Effects Action)
-init leftTopic rightTopic =
-  let
-    (left, leftFx) = Image.init leftTopic
-    (right, rightFx) = Image.init rightTopic
-  in
-    ( Model left right
-    , Effects.batch
-        [ Effects.map Left leftFx
-        , Effects.map Right rightFx
-        ]
-    )
+init : Model
+init =
+  {imgList =
+    [ Image.init "" "Black Forest Cupcakes" 0
+      , Image.init "" "Cinnamon Rolls Ganache" 1
+      , Image.init "https://s3.amazonaws.com/maries_bakery/paleo_cake_germanchocolate1.jpg" "Cinnamon Rolls Ganache" 2
+    ]}
 
+-- let, in filtering here
 
--- UPDATE
-
-type Action
-    = Left Image.Action
-    | Right Image.Action
-
-
-update : Action -> Model -> (Model, Effects Action)
+update: Action -> Model -> Model
 update action model =
   case action of
-    Left act ->
-      let
-        (left, fx) = Image.update act model.left
+    Modify id action->
+      let updateImage imageModel =
+              if imageModel.imgId == id then
+                  Image.update action imageModel
+              else
+                  imageModel
       in
-        ( Model left model.right
-        , Effects.map Left fx
-        )
-
-    Right act ->
-      let
-        (right, fx) = Image.update act model.right
-      in
-        ( Model model.left right
-        , Effects.map Right fx
-        )
-
+          { model | imgList = List.map updateImage model.imgList }
 
 -- VIEW
 
 view : Signal.Address Action -> Model -> Html
 view address model =
-  div [ style [ ("display", "flex") ] ]
-    [ Image.view (Signal.forwardTo address Left) model.left
-    , Image.view (Signal.forwardTo address Right) model.right
-    ]
+  div [ style [ ("display", "flex"), ("flex-wrap", "wrap") ] ]
+    (List.map (elementView address) model.imgList)
+
+elementView : Signal.Address Action -> Image.Model -> Html
+elementView address model =
+    Image.view (Signal.forwardTo address (Modify model.imgId)) model
+
+-- -- EFFECTS
+-- SingleUrl : String -> String
+-- SingleUrl  =
+--   Http.url "https://www.mariesglutenfree.com/ajax/products"
+--
+-- decodeUrl : Json.Decoder String
+-- decodeUrl =
+--   Json.at ["id", "image", "name"] Json.string
